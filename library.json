@@ -1,0 +1,8 @@
+{
+  "name": "esphome-hitachi-ac",
+  "version": "1.0.0",
+  "description": "ESPHome external component for controlling Hitachi AC using IRremoteESP8266 (HITACHI_AC1 protocol)",
+  "repository": "https://github.com/yourusername/esphome-hitachi-ac",
+  "license": "MIT"
+}
+
