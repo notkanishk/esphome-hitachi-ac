@@ -1,4 +1,4 @@
 [submodule "esphome-headers"]
 	path = esphome-headers
 	url = https://github.com/esphome/esphome.git
-    branch = dev
+	branch = dev
