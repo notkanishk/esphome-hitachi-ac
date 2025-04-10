@@ -11,3 +11,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+#PlatformIO
+.pio/
+
+# VS Code
+.vscode/
