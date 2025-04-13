@@ -3,15 +3,15 @@ from esphome.components import climate
 import esphome.config_validation as cv
 from esphome.const import (CONF_ID)
 
+AUTO_LOAD = ["climate"]
 
 climate_lg2_ns = cg.esphome_ns.namespace("climate_lg2")
 
 ClimateLG2 = climate_lg2_ns.class_(
     "ClimateLG2",
-    climate.Climate,
-)
+    climate.Climate)
 
-CLIMATE_LG2_SCHEMA = (
+CLIMATE_SCHEMA = (
     climate.CLIMATE_SCHEMA.extend(
         {
             cv.GenerateID: cv.declare_id(ClimateLG2)
