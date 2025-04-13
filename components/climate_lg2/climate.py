@@ -6,7 +6,7 @@ from esphome.const import (CONF_ID)
 
 climate_lg2_ns = cg.esphome_ns.namespace("climate_lg2")
 
-ClimateIR = climate_lg2_ns.class_(
+ClimateLG2 = climate_lg2_ns.class_(
     "ClimateLG2",
     climate.Climate,
 )
@@ -14,7 +14,7 @@ ClimateIR = climate_lg2_ns.class_(
 CLIMATE_LG2_SCHEMA = (
     climate.CLIMATE_SCHEMA.extend(
         {
-            cv.GenerateID: cv.declare_id(ClimateIR)
+            cv.GenerateID: cv.declare_id(ClimateLG2)
         }
     )
 )
