@@ -4,8 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SENSOR, CONF_SUPPORTS_COOL, CONF_SUPPORTS_HEAT
 
 
-climate_ir_ns = cg.esphome_ns.namespace("climate_ir")
-ClimateIR = climate_ir_ns.class_(
+climate_lg2_ns = cg.esphome_ns.namespace("climate_lg2")
+ClimateIR = climate_lg2_ns.class_(
     "ClimateLG2",
     climate.Climate,
     cg.Component
