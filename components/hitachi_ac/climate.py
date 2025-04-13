@@ -13,7 +13,7 @@ import voluptuous as vol
 
 AUTO_LOAD = ["climate"]
 hitachi_ac_ns = cg.esphome_ns.namespace("hitachi_ac")
-HitachiAC = hitachi_ac_ns.class_("HitachiAC",climate.Climate)
+HitachiAC = hitachi_ac_ns.class_("HitachiACClimate",climate.Climate)
 
 CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(HitachiAC),
