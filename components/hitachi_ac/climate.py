@@ -12,16 +12,17 @@ from esphome.const import (
 import voluptuous as vol
 
 AUTO_LOAD = ["climate"]
+
 hitachi_ac_ns = cg.esphome_ns.namespace("hitachi_ac")
 HitachiAC = hitachi_ac_ns.class_("HitachiACClimate",climate.Climate)
 
-CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend({
+CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend(
+    {
     cv.GenerateID(): cv.declare_id(HitachiAC),
-    vol.Optional(CONF_NAME, default="Hitachi AC"): cv.string,
-    vol.Optional("default_temperature", default=24.0): cv.temperature,
-}).extend(cv.COMPONENT_SCHEMA)
+}
+).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(var, config):
-    await cg.register_component(var,config)
-    await climate.register_climate(var, config)
+async def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await climate.register_climate(var,config)
