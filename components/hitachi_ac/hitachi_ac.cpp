@@ -27,7 +27,7 @@ void HitachiACClimate::loop() {
     // if (ac.decodeState(results)) {
     ac.setRaw(results.state);
 
-    Climate::mode = ac.getMode();
+    // Climate::target_temperature = ac.getTemp();
     Climate::target_temperature = ac.getTemp();
 
     // If successful, update Home Assistant with the new state.
