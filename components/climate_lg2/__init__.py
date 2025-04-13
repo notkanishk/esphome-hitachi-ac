@@ -8,19 +8,15 @@ climate_lg2_ns = cg.esphome_ns.namespace("climate_lg2")
 ClimateIR = climate_lg2_ns.class_(
     "ClimateLG2",
     climate.Climate,
-    cg.Component
 )
 
-CLIMATE_IR_SCHEMA = (
+CLIMATE_LG2_SCHEMA = (
     climate.CLIMATE_SCHEMA.extend(
         {
             cv.GenerateID: cv.declare_id(ClimateIR)
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
 )
-
-
 
 async def register_climate_ir(var, config):
     await cg.register_component(var, config)
