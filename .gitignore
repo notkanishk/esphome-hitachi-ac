@@ -21,3 +21,5 @@ env/
 
 
 uv.lock
+esp-test-ir.yaml
+.esphome/
