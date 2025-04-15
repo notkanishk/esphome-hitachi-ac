@@ -6,17 +6,12 @@ from esphome.const import (CONF_ID)
 AUTO_LOAD = ["climate"]
 
 climate_lg2_ns = cg.esphome_ns.namespace("climate_lg2")
+ClimateLG2 = climate_lg2_ns.class_("ClimateLG2",climate.Climate)
 
-ClimateLG2 = climate_lg2_ns.class_(
-    "ClimateLG2",
-    climate.Climate)
-
-CLIMATE_SCHEMA = (
-    climate.CLIMATE_SCHEMA.extend(
-        {
-            cv.GenerateID: cv.declare_id(ClimateLG2)
-        }
-    )
+CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend(
+    {
+        cv.GenerateID: cv.declare_id(ClimateLG2)
+    }
 )
 
 async def to_code(config):
