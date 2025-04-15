@@ -4,72 +4,28 @@ namespace esphome {
 
 namespace climate_lgg {
 
+
+static const char *const TAG = "climate_lgg";
+
 ClimateLGG::ClimateLGG()
   : ac(IR_LED_PIN), irrecv(IR_RECV_PIN, 512) {}
 
-void ClimateLGG::setup() {
-  // Initialize the IR transmitter.
-  ac.begin();
-  // Set a default state: power on, cooling mode, default temperature.
-  ac.setPower(true);
-  ac.setMode(kHitachiAcCool);
-  ac.setTemp(24);
-  ac.send();
 
-  // Start the IR receiver.
-  irrecv.enableIRIn();
+void ClimateLGG::dump_config() {
+  ESP_LOGCONFIG(TAG,"Climate LGG Configuration: \n");
+}
+
+
+void ClimateLGG::setup() {
+
 }
 
 void ClimateLGG::loop() {
   // Check if an IR packet has been received.
-  if (irrecv.decode(&results)) {
-    // Decode the stateful IR packet.
-    // if (ac.decodeState(results)) {
-    ac.setRaw(results.state);
-
-    // Climate::target_temperature = ac.getTemp();
-    Climate::target_temperature = ac.getTemp();
-
-    // If successful, update Home Assistant with the new state.
-    publish_state();
-
-    // Ready the receiver for the next packet.
-    irrecv.resume();
-  }
 }
 
 
 void ClimateLGG::control(const climate::ClimateCall &call) {
-  // Process mode changes.
-  if (call.get_mode().has_value()) {
-    climate::ClimateMode mode = *call.get_mode();
-    switch (mode) {
-      case climate::CLIMATE_MODE_COOL:
-        ac.setMode(kHitachiAcCool);
-        break;
-      case climate::CLIMATE_MODE_HEAT:
-        ac.setMode(kHitachiAcHeat);
-        break;
-      case climate::CLIMATE_MODE_AUTO:
-        ac.setMode(kHitachiAcAuto);
-        break;
-      case climate::CLIMATE_MODE_OFF:
-        ac.setPower(false);
-        break;
-      default:
-        break;
-    }
-  }
-  // Process temperature changes.
-  if (call.get_target_temperature().has_value()) {
-    ac.setTemp(*call.get_target_temperature());
-  }
-  // If the AC is off and a command is issued, ensure it turns on.
-  if (!ac.getPower()) {
-    ac.setPower(true);
-  }
-  // Send the updated command.
-  ac.send();
   // Publish the new state to Home Assistant.
   publish_state();
 }
@@ -86,9 +42,12 @@ climate::ClimateTraits ClimateLGG::traits() {
   });
   // Optional: set fan modes if applicable.
   traits.set_supported_fan_modes({
+    climate::CLIMATE_FAN_QUIET,
     climate::CLIMATE_FAN_LOW,
+    climate::CLIMATE_FAN_MIDDLE,
     climate::CLIMATE_FAN_MEDIUM,
-    climate::CLIMATE_FAN_HIGH
+    climate::CLIMATE_FAN_HIGH,
+    climate::CLIMATE_FAN_AUTO
   });
   traits.set_supports_two_point_target_temperature(false);
   traits.set_supported_swing_modes({

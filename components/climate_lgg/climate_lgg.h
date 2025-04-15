@@ -9,6 +9,7 @@
 #include <IRsend.h>
 #include <IRrecv.h>
 #include <ir_Hitachi.h>  // Ensure you have the protocol header available
+#include <ir_LG.h>
 
 // Define GPIO pins – adjust these as needed.
 #define IR_LED_PIN 5     // Transmitter pin
@@ -34,12 +35,13 @@ class ClimateLGG : public climate::Climate, public Component {
   // Handle control commands from Home Assistant.
   void control(const climate::ClimateCall &call) override;
 
+  void dump_config();
   // Declare supported features (modes, fan speeds, etc.).
   climate::ClimateTraits traits() override;
 
  protected:
   // IR transmitter and receiver objects for controlling the AC.
-  IRHitachiAc1 ac;
+  IRLgAc ac;
   IRrecv irrecv;
   decode_results results;
 };
