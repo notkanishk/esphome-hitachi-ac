@@ -5,10 +5,10 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/climate/climate.h"
+#include "esphome/core/hal.h"
 #include <IRremoteESP8266.h>
 #include <IRsend.h>
 #include <IRrecv.h>
-#include <ir_Hitachi.h>  // Ensure you have the protocol header available
 #include <ir_LG.h>
 
 // Define GPIO pins – adjust these as needed.
@@ -24,7 +24,7 @@ namespace climate_lgg {
  */
 class ClimateLGG : public climate::Climate, public Component {
  public:
-  ClimateLGG();
+  ClimateLGG(InternalGPIOPin *ir_led_pin, InternalGPIOPin *ir_recv_pin);
 
   // Lifecycle: called once at setup.
   void setup() override;
@@ -36,14 +36,22 @@ class ClimateLGG : public climate::Climate, public Component {
   void control(const climate::ClimateCall &call) override;
 
   void dump_config();
+
+  void set_min_temp(float min_temp) { this->min_temp = min_temp;}
+  void set_max_temp(float max_temp) { this->max_temp = max_temp;}
+
   // Declare supported features (modes, fan speeds, etc.).
   climate::ClimateTraits traits() override;
 
  protected:
+  InternalGPIOPin *_ir_led_pin;
+  InternalGPIOPin *_ir_recv_pin;
+  float min_temp;
+  float max_temp;
   // IR transmitter and receiver objects for controlling the AC.
-  IRLgAc ac;
-  IRrecv irrecv;
-  decode_results results;
+  IRLgAc *ac;
+  IRrecv *irrecv;
+  decode_results *results;
 };
 
 }  // namespace hitachi_ac
