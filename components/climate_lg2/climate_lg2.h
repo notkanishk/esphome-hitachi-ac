@@ -5,6 +5,12 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
+#include "IRremoteESP8266.h"
+#include "IRrecv.h"
+
+
+#include "ir_helper_climate.h"
+
 namespace esphome
 {
   namespace climate_lg2
@@ -25,6 +31,8 @@ namespace esphome
       void control(const climate::ClimateCall &call) override;
       climate::ClimateTraits traits() override;
       
+      ClimateIRHelper *ir_helper;
+
     };
-  } // namespace climate_lgg
+  } // namespace climate_lg2
 } // namespace esphome

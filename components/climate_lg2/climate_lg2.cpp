@@ -10,6 +10,7 @@ namespace esphome
         {
             this->ir_led_pin = ir_led_pin;
             this->ir_recv_pin = ir_recv_pin;
+            this->ir_helper = new ClimateIRHelper(this->ir_led_pin->get_pin(),this->ir_recv_pin->get_pin());
         }
 
         void ClimateLG::dump_config()
@@ -17,6 +18,8 @@ namespace esphome
             LOG_CLIMATE(TAG, "IR Climate", this);
             ESP_LOGCONFIG(TAG, "  Target. Temperature: %.1f°C", this->target_temperature);
             ESP_LOGCONFIG(TAG, "  Temperature Step: %.1f°C", 1.f);
+            LOG_PIN("  IR LED Pin:\t ",this->ir_led_pin);
+            LOG_PIN("  IR Receiver Pin:\t ",this->ir_recv_pin);
             // ESP_LOGCONFIG(TAG, "  Max. Temperature: %.1f°C", this->maximum_temperature_);
             // ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
             // ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
@@ -35,6 +38,7 @@ namespace esphome
         void ClimateLG::loop()
         {
             // Main Runtime
+            this->ir_helper->runtime();
         }
 
         void ClimateLG::control(const climate::ClimateCall &call)
