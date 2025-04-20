@@ -31,14 +31,14 @@ namespace esphome
             this->mode = climate::CLIMATE_MODE_COOL;
             this->action = climate::CLIMATE_ACTION_COOLING;
             this->fan_mode = climate::CLIMATE_FAN_HIGH;
-            this->custom_preset = {"Power Save - 60%"};
+            this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+            this->custom_preset = {"Power - 60%"};
             this->publish_state();
 
 
-            this->ac = new IRac(this->ir_led_pin->get_pin());
-            this->ac->next.protocol = decode_type_t::LG2;
-            this->ac->next.model = 2;
-            this->ac->next.celsius = true;
+            this->ac = new IRLgAc(this->ir_led_pin->get_pin());
+            this->ac->setModel(lg_ac_remote_model_t::AKB74955603);
+            this->ac->begin();
 
             this->ir_results = new decode_results;
             this->ir_recv = new IRrecv(this->ir_recv_pin->get_pin(),1024,50,true);
@@ -58,10 +58,69 @@ namespace esphome
                 if(this->ir_results->overflow) {
                     ESP_LOGE(TAG,"Buffer Flow: %s",YESNO(true));
                 }
-
-
+                
+                // Log the Output 
                 ESP_LOGD(TAG,"  %s  ",resultToHumanReadableBasic(this->ir_results).c_str());
+                // ESP_LOGD(TAG," %s",resultToHexidecimal(this->ir_results).c_str());
+                // ESP_LOGD(TAG," Preset: %s", this->custom_preset_hex_string_map[resultToHexidecimal(this->ir_results).c_str()] );
                 ESP_LOGD(TAG,"  Description: %s",IRAcUtils::resultAcToString(this->ir_results).c_str());
+                
+                
+                String hex = resultToHexidecimal(this->ir_results);
+                
+                // Ensure the Encoding is LG2
+                if (ir_results->decode_type != decode_type_t::LG2) {
+                    return;
+                }
+                if (!this->ac->isValidLgAc()) {
+                    return;
+                }                   
+
+                // Process Power ( LG AC Incorrect Convertible Power Modes as Power Off)
+                if (this->ac->getPower() == 0)  {
+
+                    // Process Convertible Modes
+                    if (this->custom_preset_hex_string_map.count(hex.c_str()))
+                    {
+                        this->custom_preset = esphome::make_optional(custom_preset_hex_string_map[hex.c_str()].c_str());
+                        
+                        this->preset.reset();
+    
+                    }
+
+                }
+                
+
+                
+                // Process Mode, Temperature, Fan
+                this->ac->setRaw(this->ir_results->value,this->ir_results->decode_type);
+
+                // Temp
+                this->target_temperature = this->ac->getTemp();
+
+                // Mode
+                this->mode = this->mode_vec[this->ac->getMode()];
+                
+                // Fan
+                uint32_t fan = this->ac->getFan();
+
+                if (this->fan_map.count(fan)) {
+                    this->fan_mode = this->fan_map[fan];
+                    this->custom_fan_mode.reset();
+                } else if (fan == 4) {
+                    this->set_custom_fan_mode_("Max");
+                    this->fan_mode.reset();
+                } else {
+                    ESP_LOGE(TAG,"  Invalid Fan Mode Received: %d",fan);
+                }
+
+
+
+                // Process Presets 
+           
+                
+                this->publish_state();
+                
             }
 
 
@@ -137,7 +196,7 @@ namespace esphome
             traits.set_supported_custom_fan_modes({"Max"});
             traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF,
                                               climate::CLIMATE_SWING_VERTICAL});
-            traits.set_supported_custom_presets({"Power - 80%", "Power - 60%", "Power - 40%", "Turbo"});
+            traits.set_supported_custom_presets({"Power - 100%","Power - 80%", "Power - 60%", "Power - 40%", "Turbo"});
             return traits;
         }
 
