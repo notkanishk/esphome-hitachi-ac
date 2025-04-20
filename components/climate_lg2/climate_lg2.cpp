@@ -10,7 +10,7 @@ namespace esphome
         {
             this->ir_led_pin = ir_led_pin;
             this->ir_recv_pin = ir_recv_pin;
-            this->ir_helper = new ClimateIRHelper(this->ir_led_pin->get_pin(),this->ir_recv_pin->get_pin());
+            
         }
 
         void ClimateLG::dump_config()
@@ -33,12 +33,38 @@ namespace esphome
             this->fan_mode = climate::CLIMATE_FAN_HIGH;
             this->custom_preset = {"Power Save - 60%"};
             this->publish_state();
-        }
 
+
+            this->ac = new IRac(this->ir_led_pin->get_pin());
+            this->ac->next.protocol = decode_type_t::LG2;
+            this->ac->next.model = 2;
+            this->ac->next.celsius = true;
+
+            this->ir_results = new decode_results;
+            this->ir_recv = new IRrecv(this->ir_recv_pin->get_pin(),1024,50,true);
+            this->ir_recv->setTolerance(kTolerance);
+            this->ir_recv->setUnknownThreshold(12);
+            this->ir_recv->enableIRIn();
+            ESP_LOGD(TAG,"Low Level Sanity Check: %d",irutils::lowLevelSanityCheck());
+        }
+        
         void ClimateLG::loop()
         {
             // Main Runtime
-            this->ir_helper->runtime();
+
+
+            if (this->ir_recv->decode(this->ir_results)) {
+
+                if(this->ir_results->overflow) {
+                    ESP_LOGE(TAG,"Buffer Flow: %s",YESNO(true));
+                }
+
+
+                ESP_LOGD(TAG,"  %s  ",resultToHumanReadableBasic(this->ir_results).c_str());
+                ESP_LOGD(TAG,"  Description: %s",IRAcUtils::resultAcToString(this->ir_results).c_str());
+            }
+
+
         }
 
         void ClimateLG::control(const climate::ClimateCall &call)

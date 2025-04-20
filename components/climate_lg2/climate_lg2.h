@@ -7,9 +7,11 @@
 
 #include "IRremoteESP8266.h"
 #include "IRrecv.h"
+#include "IRac.h"
+#include "ir_LG.h"
+#include "IRutils.h"
+#include "IRtext.h"
 
-
-#include "ir_helper_climate.h"
 
 namespace esphome
 {
@@ -30,9 +32,10 @@ namespace esphome
 
       void control(const climate::ClimateCall &call) override;
       climate::ClimateTraits traits() override;
-      
-      ClimateIRHelper *ir_helper;
 
+      decode_results *ir_results;
+      IRrecv *ir_recv;
+      IRac *ac;
     };
   } // namespace climate_lg2
 } // namespace esphome
