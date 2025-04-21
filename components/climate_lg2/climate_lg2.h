@@ -32,8 +32,12 @@ namespace esphome
     protected:
       InternalGPIOPin *ir_led_pin;
       InternalGPIOPin *ir_recv_pin;
-      std::map<String,String> custom_preset_hex_string_map = {
-        {"0x88C07D0","Power - 80%"},{"0x88C07E1","Power - 60%"},{"0x88C0804","Power - 40%"},{"0x88100DE","Turbo"},{"0x88C07F2","Power - 100%"}
+      std::map<String,String> power_mode_map = {
+        {"0x88C07D0","Power - 80%"},{"0x88C07E1","Power - 60%"},{"0x88C0804","Power - 40%"},{"0x88C07F2","Power - 100%"}
+      };
+
+      std::map<String,String> special_mode_map = {
+        {"0x88100DE","Turbo"}
       };
 
       std::vector<climate::ClimateMode> mode_vec = {

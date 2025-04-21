@@ -79,19 +79,36 @@ namespace esphome
                 // Process Power ( LG AC Incorrect Convertible Power Modes as Power Off)
                 if (this->ac->getPower() == 0)  {
 
-                    // Process Convertible Modes
-                    if (this->custom_preset_hex_string_map.count(hex.c_str()))
-                    {
-                        this->custom_preset = esphome::make_optional(custom_preset_hex_string_map[hex.c_str()].c_str());
-                        
-                        this->preset.reset();
-    
+                    if (hex ==  String("0x88C0051")) {
+                        ESP_LOGD(TAG,"Power Off State");
+                        this->mode = climate::CLIMATE_MODE_OFF;
+                        this->fan_mode = climate::CLIMATE_FAN_OFF;
+                        this->custom_fan_mode.reset();
+                        this->custom_preset.reset();
+                        this->publish_state();
+                        return;
                     }
 
+                    // Process Convertible Modes
+                    if (this->power_mode_map.count(hex.c_str()))
+                    {
+                        this->custom_preset = esphome::make_optional(this->power_mode_map[hex.c_str()].c_str());
+                        this->preset.reset();
+                        this->publish_state();
+                        return;
+                    }
+                }
+                this->ac->setPower(true);
+                
+                // Process  Turbo
+                if(this->special_mode_map.count(hex)) {
+                    if (special_mode_map[hex] == "Turbo") {
+                        this->custom_preset = esphome::make_optional(this->special_mode_map[hex.c_str()].c_str());
+                        this->preset.reset();
+                    }
                 }
                 
 
-                
                 // Process Mode, Temperature, Fan
                 this->ac->setRaw(this->ir_results->value,this->ir_results->decode_type);
 
@@ -117,8 +134,6 @@ namespace esphome
 
 
                 // Process Presets 
-           
-                
                 this->publish_state();
                 
             }
@@ -192,6 +207,7 @@ namespace esphome
                 climate::CLIMATE_FAN_MEDIUM,
                 climate::CLIMATE_FAN_HIGH,
                 climate::CLIMATE_FAN_QUIET,
+                climate::CLIMATE_FAN_OFF
             });
             traits.set_supported_custom_fan_modes({"Max"});
             traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF,
