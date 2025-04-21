@@ -10,7 +10,6 @@ namespace esphome
         {
             this->ir_led_pin = ir_led_pin;
             this->ir_recv_pin = ir_recv_pin;
-            
         }
 
         void ClimateLG::dump_config()
@@ -18,8 +17,8 @@ namespace esphome
             LOG_CLIMATE(TAG, "IR Climate", this);
             ESP_LOGCONFIG(TAG, "  Target. Temperature: %.1f°C", this->target_temperature);
             ESP_LOGCONFIG(TAG, "  Temperature Step: %.1f°C", 1.f);
-            LOG_PIN("  IR LED Pin:\t ",this->ir_led_pin);
-            LOG_PIN("  IR Receiver Pin:\t ",this->ir_recv_pin);
+            LOG_PIN("  IR LED Pin:\t ", this->ir_led_pin);
+            LOG_PIN("  IR Receiver Pin:\t ", this->ir_recv_pin);
             // ESP_LOGCONFIG(TAG, "  Max. Temperature: %.1f°C", this->maximum_temperature_);
             // ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
             // ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
@@ -32,117 +31,163 @@ namespace esphome
             this->action = climate::CLIMATE_ACTION_COOLING;
             this->fan_mode = climate::CLIMATE_FAN_HIGH;
             this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-            this->custom_preset = {"Power - 60%"};
+            this->custom_preset = {"Power - 100%"};
             this->publish_state();
 
-
             this->ac = new IRLgAc(this->ir_led_pin->get_pin());
-            this->ac->setModel(lg_ac_remote_model_t::AKB74955603);
+            this->ac->setModel(lg_ac_remote_model_t::AKB75215403);
             this->ac->begin();
 
             this->ir_results = new decode_results;
-            this->ir_recv = new IRrecv(this->ir_recv_pin->get_pin(),1024,50,true);
+            this->ir_recv = new IRrecv(this->ir_recv_pin->get_pin(), 1024, 50, true);
             this->ir_recv->setTolerance(kTolerance);
             this->ir_recv->setUnknownThreshold(12);
             this->ir_recv->enableIRIn();
-            ESP_LOGD(TAG,"Low Level Sanity Check: %d",irutils::lowLevelSanityCheck());
+            ESP_LOGD(TAG, "Low Level Sanity Check: %d", irutils::lowLevelSanityCheck());
         }
-        
+
+        void ClimateLG::onReceive(decode_results *results)
+        {
+
+            String hex = resultToHexidecimal(results);
+            
+            // Ensure the Encoding is LG2
+            if (results->decode_type != decode_type_t::LG2)
+            {
+                return;
+            }
+            if (!this->ac->isValidLgAc())
+            {
+                return;
+            }
+            this->ac->setRaw(results->value, results->decode_type);
+            
+            if (this->ac->getPower() == 0)
+            {
+                ESP_LOGD(TAG,"isPowerOff %d",this->ac->isOffCommand());
+
+                if (this->ac->isOffCommand())
+                {
+                    ESP_LOGD(TAG, "Power Off State");
+                    this->mode = climate::CLIMATE_MODE_OFF;
+                    this->fan_mode = climate::CLIMATE_FAN_OFF;
+                    this->custom_fan_mode.reset();
+                    this->custom_preset.reset();
+
+                    // Restore the backup
+                    this->publish_state();
+                    return;
+                }
+
+                // Process Convertible Modes
+                if (this->power_mode_hex_str_map.count(hex.c_str()))
+                {
+                    this->custom_preset = esphome::make_optional(this->power_mode_hex_str_map[hex.c_str()].c_str());
+                    this->preset.reset();
+                    
+                    // Restore the backup
+                    this->publish_state();
+                    return;
+                }
+            }
+
+            // Process  Turbo
+            if (this->special_mode_map.count(hex))
+            {
+                if (special_mode_map[hex] == "Turbo")
+                {
+                    this->custom_preset = esphome::make_optional(this->special_mode_map[hex.c_str()].c_str());
+                    this->preset.reset();
+                }
+            }
+
+            // Process Mode, Temperature, Fan
+            this->ac->setRaw(this->ir_results->value, this->ir_results->decode_type);
+
+            // Temp
+            this->target_temperature = this->ac->getTemp();
+
+            // Mode
+            this->mode = this->mode_vec[this->ac->getMode()];
+
+            // Fan
+            uint32_t fan = this->ac->getFan();
+
+            if (this->int_fan_map.count(fan))
+            {
+                this->fan_mode = this->int_fan_map[fan];
+                this->custom_fan_mode.reset();
+            }
+            else if (fan == 4)
+            {
+                this->set_custom_fan_mode_("Max");
+                this->fan_mode.reset();
+            }
+            else
+            {
+                ESP_LOGE(TAG, "  Invalid Fan Mode Received: %d", fan);
+            }
+            this->transmit();
+            this->publish_state();
+        }
+
+
+        void ClimateLG::transmit()
+        {
+            // Power
+            // this->ac->stateReset();
+            this->ac->setPower(this->mode != climate::CLIMATE_MODE_OFF);
+
+            if (this->mode == climate::CLIMATE_MODE_OFF) {
+                this->ac->send();
+                return;
+            }
+
+            // TODO: Power Modes
+
+
+            // TODO: Swing
+            
+            // TODO: Special Modes - Turbo
+
+            // Mode
+            this->ac->setMode(this->mode_ir_mode_map[this->mode]);
+
+            // Temp
+            this->ac->setTemp(std::floor(this->target_temperature));
+
+            // TODO: Fan
+            if (this->fan_mode.has_value()) {
+                this->ac->setFan(fan_int_map[this->fan_mode.value()]);
+            }
+
+            if (this->custom_fan_mode.has_value()) {
+                this->ac->setFan(this->custom_fan_int_map[this->custom_fan_mode.value().c_str()]);
+            }
+
+            // Send
+            this->ac->send();
+        }
+
         void ClimateLG::loop()
         {
             // Main Runtime
-
-
-            if (this->ir_recv->decode(this->ir_results)) {
-
-                if(this->ir_results->overflow) {
-                    ESP_LOGE(TAG,"Buffer Flow: %s",YESNO(true));
-                }
-                
-                // Log the Output 
-                ESP_LOGD(TAG,"  %s  ",resultToHumanReadableBasic(this->ir_results).c_str());
-                // ESP_LOGD(TAG," %s",resultToHexidecimal(this->ir_results).c_str());
-                // ESP_LOGD(TAG," Preset: %s", this->custom_preset_hex_string_map[resultToHexidecimal(this->ir_results).c_str()] );
-                ESP_LOGD(TAG,"  Description: %s",IRAcUtils::resultAcToString(this->ir_results).c_str());
-                
-                
-                String hex = resultToHexidecimal(this->ir_results);
-                
-                // Ensure the Encoding is LG2
-                if (ir_results->decode_type != decode_type_t::LG2) {
+            if (this->ir_recv->decode(this->ir_results))
+            {
+                if (this->ir_results->overflow)
+                {
+                    ESP_LOGE(TAG, "Buffer Flow: %s", YESNO(true));
                     return;
                 }
-                if (!this->ac->isValidLgAc()) {
-                    return;
-                }                   
 
-                // Process Power ( LG AC Incorrect Convertible Power Modes as Power Off)
-                if (this->ac->getPower() == 0)  {
-
-                    if (hex ==  String("0x88C0051")) {
-                        ESP_LOGD(TAG,"Power Off State");
-                        this->mode = climate::CLIMATE_MODE_OFF;
-                        this->fan_mode = climate::CLIMATE_FAN_OFF;
-                        this->custom_fan_mode.reset();
-                        this->custom_preset.reset();
-                        this->publish_state();
-                        return;
-                    }
-
-                    // Process Convertible Modes
-                    if (this->power_mode_map.count(hex.c_str()))
-                    {
-                        this->custom_preset = esphome::make_optional(this->power_mode_map[hex.c_str()].c_str());
-                        this->preset.reset();
-                        this->publish_state();
-                        return;
-                    }
-                }
-                this->ac->setPower(true);
-                
-                // Process  Turbo
-                if(this->special_mode_map.count(hex)) {
-                    if (special_mode_map[hex] == "Turbo") {
-                        this->custom_preset = esphome::make_optional(this->special_mode_map[hex.c_str()].c_str());
-                        this->preset.reset();
-                    }
-                }
-                
-
-                // Process Mode, Temperature, Fan
-                this->ac->setRaw(this->ir_results->value,this->ir_results->decode_type);
-
-                // Temp
-                this->target_temperature = this->ac->getTemp();
-
-                // Mode
-                this->mode = this->mode_vec[this->ac->getMode()];
-                
-                // Fan
-                uint32_t fan = this->ac->getFan();
-
-                if (this->fan_map.count(fan)) {
-                    this->fan_mode = this->fan_map[fan];
-                    this->custom_fan_mode.reset();
-                } else if (fan == 4) {
-                    this->set_custom_fan_mode_("Max");
-                    this->fan_mode.reset();
-                } else {
-                    ESP_LOGE(TAG,"  Invalid Fan Mode Received: %d",fan);
-                }
-
-
-
-                // Process Presets 
-                this->publish_state();
-                
+                this->onReceive(this->ir_results);
             }
-
-
         }
 
         void ClimateLG::control(const climate::ClimateCall &call)
         {
+
+
             if (call.get_mode().has_value())
             {
                 this->mode = *call.get_mode();
@@ -201,18 +246,16 @@ namespace esphome
                 climate::CLIMATE_MODE_FAN_ONLY,
             });
             traits.set_supports_action(true);
-            traits.set_supported_fan_modes({
-                climate::CLIMATE_FAN_AUTO,
-                climate::CLIMATE_FAN_LOW,
-                climate::CLIMATE_FAN_MEDIUM,
-                climate::CLIMATE_FAN_HIGH,
-                climate::CLIMATE_FAN_QUIET,
-                climate::CLIMATE_FAN_OFF
-            });
+            traits.set_supported_fan_modes({climate::CLIMATE_FAN_AUTO,
+                                            climate::CLIMATE_FAN_LOW,
+                                            climate::CLIMATE_FAN_MEDIUM,
+                                            climate::CLIMATE_FAN_HIGH,
+                                            climate::CLIMATE_FAN_QUIET,
+                                            climate::CLIMATE_FAN_OFF});
             traits.set_supported_custom_fan_modes({"Max"});
             traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF,
                                               climate::CLIMATE_SWING_VERTICAL});
-            traits.set_supported_custom_presets({"Power - 100%","Power - 80%", "Power - 60%", "Power - 40%", "Turbo"});
+            traits.set_supported_custom_presets({"Power - 100%", "Power - 80%", "Power - 60%", "Power - 40%", "Turbo"});
             return traits;
         }
 
