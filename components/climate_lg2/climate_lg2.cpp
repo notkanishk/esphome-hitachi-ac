@@ -127,13 +127,14 @@ namespace esphome
             {
                 ESP_LOGE(TAG, "  Invalid Fan Mode Received: %d", fan);
             }
-            this->transmit();
             this->publish_state();
         }
 
 
         void ClimateLG::transmit()
         {
+            ESP_LOGD(TAG,"ir transmit called()");
+
             // Power
             // this->ac->stateReset();
             this->ac->setPower(this->mode != climate::CLIMATE_MODE_OFF);
@@ -166,7 +167,7 @@ namespace esphome
             }
 
             // Send
-            this->ac->send();
+            this->ac->send(0);
         }
 
         void ClimateLG::loop()
@@ -228,6 +229,7 @@ namespace esphome
                 this->custom_preset = *call.get_custom_preset();
                 this->preset.reset();
             }
+            this->transmit();
             this->publish_state();
         }
 
