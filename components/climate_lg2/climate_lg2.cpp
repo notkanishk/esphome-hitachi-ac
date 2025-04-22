@@ -135,6 +135,10 @@ namespace esphome
         {
             ESP_LOGD(TAG,"ir transmit called()");
 
+
+
+
+
             // Power
             // this->ac->stateReset();
             this->ac->setPower(this->mode != climate::CLIMATE_MODE_OFF);
@@ -188,6 +192,11 @@ namespace esphome
         void ClimateLG::control(const climate::ClimateCall &call)
         {
 
+            // Save a copy of the current state before you update
+            this->prev_state = {
+                mode: this->mode;
+            };
+
 
             if (call.get_mode().has_value())
             {
@@ -197,14 +206,14 @@ namespace esphome
             {
                 this->target_temperature = *call.get_target_temperature();
             }
-            if (call.get_target_temperature_low().has_value())
-            {
-                this->target_temperature_low = *call.get_target_temperature_low();
-            }
-            if (call.get_target_temperature_high().has_value())
-            {
-                this->target_temperature_high = *call.get_target_temperature_high();
-            }
+            // if (call.get_target_temperature_low().has_value())
+            // {
+            //     this->target_temperature_low = *call.get_target_temperature_low();
+            // }
+            // if (call.get_target_temperature_high().has_value())
+            // {
+            //     this->target_temperature_high = *call.get_target_temperature_high();
+            // }
             if (call.get_fan_mode().has_value())
             {
                 this->fan_mode = *call.get_fan_mode();

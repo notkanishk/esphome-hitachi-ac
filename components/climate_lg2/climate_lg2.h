@@ -21,6 +21,22 @@ namespace esphome
   namespace climate_lg2
   {
 
+    struct {
+      // Mode
+      climate::ClimateMode mode;
+      // Temp
+      float temp;
+      // CUstom Preset
+      String custom_preset;
+      // Fan
+      climate::ClimateFanMode fan_mode;
+      // Custom Fan
+      String custom_fan;
+      // Swing 
+      climate::ClimateSwingMode swing_mode;
+    } ClimateState;
+    typedef ClimateState;
+
     class ClimateLG : public climate::Climate, public Component
     {
     public:
@@ -84,6 +100,8 @@ namespace esphome
       void onReceive(decode_results *results);
       void transmit();
 
+      
+      ClimateState prev_state;
       decode_results *ir_results;
       IRrecv *ir_recv;
       IRLgAc *ac;
