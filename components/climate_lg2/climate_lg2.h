@@ -15,27 +15,25 @@
 #include <map>
 
 
-
-namespace esphome
-{
-  namespace climate_lg2
-  {
-
     struct {
       // Mode
-      climate::ClimateMode mode;
+      esphome::climate::ClimateMode mode;
       // Temp
       float temp;
       // CUstom Preset
       String custom_preset;
       // Fan
-      climate::ClimateFanMode fan_mode;
+      esphome::climate::ClimateFanMode fan_mode;
       // Custom Fan
-      String custom_fan;
+      String custom_fan_mode;
       // Swing 
-      climate::ClimateSwingMode swing_mode;
-    } ClimateState;
-    typedef ClimateState;
+      esphome::climate::ClimateSwingMode swing_mode;
+    }typedef CustomClimateState;
+
+namespace esphome
+{
+  namespace climate_lg2
+  {
 
     class ClimateLG : public climate::Climate, public Component
     {
@@ -101,10 +99,11 @@ namespace esphome
       void transmit();
 
       
-      ClimateState prev_state;
+      CustomClimateState prev_state;
       decode_results *ir_results;
       IRrecv *ir_recv;
       IRLgAc *ac;
+      IRsend *ir_send;
     };
   } // namespace climate_lg2
 } // namespace esphome

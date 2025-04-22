@@ -5,6 +5,8 @@ namespace esphome
     namespace climate_lg2
     {
         static const char *const TAG = "climate.climate_lg2";
+        static const char *const TAG_IR_RECV = "climate.climate_lg2.ir_recv";
+        static const char *const TAG_IR_SEND = "climate.climate_lg2.ir_send";
 
         ClimateLG::ClimateLG(InternalGPIOPin *ir_led_pin, InternalGPIOPin *ir_recv_pin)
         {
@@ -38,19 +40,26 @@ namespace esphome
             this->ac->setModel(lg_ac_remote_model_t::AKB75215403);
             this->ac->begin();
 
+            this->ir_send = new IRsend(this->ir_led_pin->get_pin());
+            this->ir_send->begin();
+
+
             this->ir_results = new decode_results;
             this->ir_recv = new IRrecv(this->ir_recv_pin->get_pin(), 1024, 50, true);
             this->ir_recv->setTolerance(kTolerance);
             this->ir_recv->setUnknownThreshold(12);
             this->ir_recv->enableIRIn();
             ESP_LOGD(TAG, "Low Level Sanity Check: %d", irutils::lowLevelSanityCheck());
+
+
+            
         }
 
         void ClimateLG::onReceive(decode_results *results)
         {
 
             String hex = resultToHexidecimal(results);
-            
+            // ESP_LOGD(TAG_IR_RECV,"\n Received Code: %d (%d)\n Hex: %s",results->value,results->bits,hex.c_str());
             // Ensure the Encoding is LG2
             if (results->decode_type != decode_type_t::LG2)
             {
@@ -61,14 +70,14 @@ namespace esphome
                 return;
             }
             this->ac->setRaw(results->value, results->decode_type);
-            
+
             if (this->ac->getPower() == 0)
             {
-                ESP_LOGD(TAG,"isPowerOff %d",this->ac->isOffCommand());
+                ESP_LOGD(TAG_IR_RECV,"isPowerOff %d",this->ac->isOffCommand());
 
                 if (this->ac->isOffCommand())
                 {
-                    ESP_LOGD(TAG, "Power Off State");
+                    ESP_LOGD(TAG_IR_RECV, "Power Off State");
                     this->mode = climate::CLIMATE_MODE_OFF;
                     this->fan_mode = climate::CLIMATE_FAN_OFF;
                     this->custom_fan_mode.reset();
@@ -135,25 +144,34 @@ namespace esphome
         {
             ESP_LOGD(TAG,"ir transmit called()");
 
-
-
-
-
-            // Power
-            // this->ac->stateReset();
-            this->ac->setPower(this->mode != climate::CLIMATE_MODE_OFF);
-
+            // Power Off
             if (this->mode == climate::CLIMATE_MODE_OFF) {
+                this->ac->setPower(false);
                 this->ac->send();
                 return;
             }
 
-            // TODO: Power Modes
+            // Power Modes
+            if (this->custom_preset.value().c_str() != this->prev_state.custom_preset.c_str()) {
+                ESP_LOGD(TAG_IR_SEND,"\n Current Power Mode: %s \n Prev Power Mode: %s",this->custom_preset.value().c_str(),this->prev_state.custom_preset.c_str());
+                
+                // uint32_t code = this->power_mode_str_hex_map[this->custom_preset.value().c_str()].replace("0x","") ;
+                // this->ir_send->send(decode_type_t::LG2,,28))
 
+                return;
+            }
 
             // TODO: Swing
-            
+            if (this->swing_mode != this->prev_state.swing_mode) {
+
+                return;
+            }
+
             // TODO: Special Modes - Turbo
+
+            // Set Power On
+            this->ac->setPower(true);
+
 
             // Mode
             this->ac->setMode(this->mode_ir_mode_map[this->mode]);
@@ -193,10 +211,14 @@ namespace esphome
         {
 
             // Save a copy of the current state before you update
-            this->prev_state = {
-                mode: this->mode;
+            this->prev_state = CustomClimateState {
+                mode: this->mode,
+                temp: this->target_temperature,
+                custom_preset: this->custom_preset.value().c_str(),
+                fan_mode: this->fan_mode.value(),
+                custom_fan_mode: this->custom_fan_mode.value().c_str(),
+                swing_mode: this->swing_mode
             };
-
 
             if (call.get_mode().has_value())
             {
