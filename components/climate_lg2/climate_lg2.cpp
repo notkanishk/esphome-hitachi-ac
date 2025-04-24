@@ -1,296 +1,215 @@
 #include "climate_lg2.h"
+#include "esphome/core/log.h"
 
-namespace esphome
-{
-    namespace climate_lg2
-    {
-        static const char *const TAG = "climate.climate_lg2";
-        static const char *const TAG_IR_RECV = "climate.climate_lg2.ir_recv";
-        static const char *const TAG_IR_SEND = "climate.climate_lg2.ir_send";
+namespace esphome {
+namespace lg_climate {
 
-        ClimateLG::ClimateLG(InternalGPIOPin *ir_led_pin, InternalGPIOPin *ir_recv_pin)
-        {
-            this->ir_led_pin = ir_led_pin;
-            this->ir_recv_pin = ir_recv_pin;
-        }
+static const char *const TAG = "lg_climate";
 
-        void ClimateLG::dump_config()
-        {
-            LOG_CLIMATE(TAG, "IR Climate", this);
-            ESP_LOGCONFIG(TAG, "  Target. Temperature: %.1f°C", this->target_temperature);
-            ESP_LOGCONFIG(TAG, "  Temperature Step: %.1f°C", 1.f);
-            LOG_PIN("  IR LED Pin:\t ", this->ir_led_pin);
-            LOG_PIN("  IR Receiver Pin:\t ", this->ir_recv_pin);
-            // ESP_LOGCONFIG(TAG, "  Max. Temperature: %.1f°C", this->maximum_temperature_);
-            // ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
-            // ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
-        }
-
-        void ClimateLG::setup()
-        {
-            this->target_temperature = 24.0;
-            this->mode = climate::CLIMATE_MODE_COOL;
-            this->action = climate::CLIMATE_ACTION_COOLING;
-            this->fan_mode = climate::CLIMATE_FAN_HIGH;
-            this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-            this->custom_preset = {"Power - 100%"};
-            this->publish_state();
-
-            this->ac = new IRLgAc(this->ir_led_pin->get_pin());
-            this->ac->setModel(lg_ac_remote_model_t::AKB75215403);
-            this->ac->begin();
-
-            this->ir_send = new IRsend(this->ir_led_pin->get_pin());
-            this->ir_send->begin();
-
-
-            this->ir_results = new decode_results;
-            this->ir_recv = new IRrecv(this->ir_recv_pin->get_pin(), 1024, 50, true);
-            this->ir_recv->setTolerance(kTolerance);
-            this->ir_recv->setUnknownThreshold(12);
-            this->ir_recv->enableIRIn();
-            ESP_LOGD(TAG, "Low Level Sanity Check: %d", irutils::lowLevelSanityCheck());
-
-
-            
-        }
-
-        void ClimateLG::onReceive(decode_results *results)
-        {
-
-            String hex = resultToHexidecimal(results);
-            // ESP_LOGD(TAG_IR_RECV,"\n Received Code: %d (%d)\n Hex: %s",results->value,results->bits,hex.c_str());
-            // Ensure the Encoding is LG2
-            if (results->decode_type != decode_type_t::LG2)
-            {
-                return;
-            }
-            if (!this->ac->isValidLgAc())
-            {
-                return;
-            }
-            this->ac->setRaw(results->value, results->decode_type);
-
-            if (this->ac->getPower() == 0)
-            {
-                ESP_LOGD(TAG_IR_RECV,"isPowerOff %d",this->ac->isOffCommand());
-
-                if (this->ac->isOffCommand())
-                {
-                    ESP_LOGD(TAG_IR_RECV, "Power Off State");
-                    this->mode = climate::CLIMATE_MODE_OFF;
-                    this->fan_mode = climate::CLIMATE_FAN_OFF;
-                    this->custom_fan_mode.reset();
-                    this->custom_preset.reset();
-
-                    // Restore the backup
-                    this->publish_state();
-                    return;
-                }
-
-                // Process Convertible Modes
-                if (this->power_mode_hex_str_map.count(hex.c_str()))
-                {
-                    this->custom_preset = esphome::make_optional(this->power_mode_hex_str_map[hex.c_str()].c_str());
-                    this->preset.reset();
-                    
-                    // Restore the backup
-                    this->publish_state();
-                    return;
-                }
-            }
-
-            // Process  Turbo
-            if (this->special_mode_map.count(hex))
-            {
-                if (special_mode_map[hex] == "Turbo")
-                {
-                    this->custom_preset = esphome::make_optional(this->special_mode_map[hex.c_str()].c_str());
-                    this->preset.reset();
-                }
-            }
-
-            // Process Mode, Temperature, Fan
-            this->ac->setRaw(this->ir_results->value, this->ir_results->decode_type);
-
-            // Temp
-            this->target_temperature = this->ac->getTemp();
-
-            // Mode
-            this->mode = this->mode_vec[this->ac->getMode()];
-
-            // Fan
-            uint32_t fan = this->ac->getFan();
-
-            if (this->int_fan_map.count(fan))
-            {
-                this->fan_mode = this->int_fan_map[fan];
-                this->custom_fan_mode.reset();
-            }
-            else if (fan == 4)
-            {
-                this->set_custom_fan_mode_("Max");
-                this->fan_mode.reset();
-            }
-            else
-            {
-                ESP_LOGE(TAG, "  Invalid Fan Mode Received: %d", fan);
-            }
-            this->publish_state();
-        }
-
-
-        void ClimateLG::transmit()
-        {
-            ESP_LOGD(TAG,"ir transmit called()");
-
-            // Power Off
-            if (this->mode == climate::CLIMATE_MODE_OFF) {
-                this->ac->setPower(false);
-                this->ac->send();
-                return;
-            }
-
-            // Power Modes
-            if (this->custom_preset.value().c_str() != this->prev_state.custom_preset.c_str()) {
-                ESP_LOGD(TAG_IR_SEND,"\n Current Power Mode: %s \n Prev Power Mode: %s",this->custom_preset.value().c_str(),this->prev_state.custom_preset.c_str());
-                
-                // uint32_t code = this->power_mode_str_hex_map[this->custom_preset.value().c_str()].replace("0x","") ;
-                // this->ir_send->send(decode_type_t::LG2,,28))
-
-                return;
-            }
-
-            // TODO: Swing
-            if (this->swing_mode != this->prev_state.swing_mode) {
-
-                return;
-            }
-
-            // TODO: Special Modes - Turbo
-
-            // Set Power On
-            this->ac->setPower(true);
-
-
-            // Mode
-            this->ac->setMode(this->mode_ir_mode_map[this->mode]);
-
-            // Temp
-            this->ac->setTemp(std::floor(this->target_temperature));
-
-            // TODO: Fan
-            if (this->fan_mode.has_value()) {
-                this->ac->setFan(fan_int_map[this->fan_mode.value()]);
-            }
-
-            if (this->custom_fan_mode.has_value()) {
-                this->ac->setFan(this->custom_fan_int_map[this->custom_fan_mode.value().c_str()]);
-            }
-
-            // Send
-            this->ac->send(0);
-        }
-
-        void ClimateLG::loop()
-        {
-            // Main Runtime
-            if (this->ir_recv->decode(this->ir_results))
-            {
-                if (this->ir_results->overflow)
-                {
-                    ESP_LOGE(TAG, "Buffer Flow: %s", YESNO(true));
-                    return;
-                }
-
-                this->onReceive(this->ir_results);
-            }
-        }
-
-        void ClimateLG::control(const climate::ClimateCall &call)
-        {
-
-            // Save a copy of the current state before you update
-            this->prev_state = CustomClimateState {
-                mode: this->mode,
-                temp: this->target_temperature,
-                custom_preset: this->custom_preset.value().c_str(),
-                fan_mode: this->fan_mode.value(),
-                custom_fan_mode: this->custom_fan_mode.value().c_str(),
-                swing_mode: this->swing_mode
-            };
-
-            if (call.get_mode().has_value())
-            {
-                this->mode = *call.get_mode();
-            }
-            if (call.get_target_temperature().has_value())
-            {
-                this->target_temperature = *call.get_target_temperature();
-            }
-            // if (call.get_target_temperature_low().has_value())
-            // {
-            //     this->target_temperature_low = *call.get_target_temperature_low();
-            // }
-            // if (call.get_target_temperature_high().has_value())
-            // {
-            //     this->target_temperature_high = *call.get_target_temperature_high();
-            // }
-            if (call.get_fan_mode().has_value())
-            {
-                this->fan_mode = *call.get_fan_mode();
-                this->custom_fan_mode.reset();
-            }
-            if (call.get_swing_mode().has_value())
-            {
-                this->swing_mode = *call.get_swing_mode();
-            }
-            if (call.get_custom_fan_mode().has_value())
-            {
-                this->custom_fan_mode = *call.get_custom_fan_mode();
-                this->fan_mode.reset();
-            }
-            if (call.get_preset().has_value())
-            {
-                this->preset = *call.get_preset();
-                this->custom_preset.reset();
-            }
-            if (call.get_custom_preset().has_value())
-            {
-                this->custom_preset = *call.get_custom_preset();
-                this->preset.reset();
-            }
-            this->transmit();
-            this->publish_state();
-        }
-
-        climate::ClimateTraits ClimateLG::traits()
-        {
-            auto traits = climate::ClimateTraits();
-            traits.set_visual_min_temperature(16.0f);
-            traits.set_visual_max_temperature(30.0f);
-            traits.set_supports_current_temperature(false);
-            traits.set_visual_temperature_step(1.0f);
-            traits.set_supported_modes({
-                climate::CLIMATE_MODE_OFF,
-                climate::CLIMATE_MODE_COOL,
-                climate::CLIMATE_MODE_AUTO,
-                climate::CLIMATE_MODE_DRY,
-                climate::CLIMATE_MODE_FAN_ONLY,
-            });
-            traits.set_supports_action(true);
-            traits.set_supported_fan_modes({climate::CLIMATE_FAN_AUTO,
-                                            climate::CLIMATE_FAN_LOW,
-                                            climate::CLIMATE_FAN_MEDIUM,
-                                            climate::CLIMATE_FAN_HIGH,
-                                            climate::CLIMATE_FAN_QUIET,
-                                            climate::CLIMATE_FAN_OFF});
-            traits.set_supported_custom_fan_modes({"Max"});
-            traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF,
-                                              climate::CLIMATE_SWING_VERTICAL});
-            traits.set_supported_custom_presets({"Power - 100%", "Power - 80%", "Power - 60%", "Power - 40%", "Turbo"});
-            return traits;
-        }
-
-    }
+void LGClimate::setup() {
+  // Initialize the IR sender
+  this->ir_send_ = new IRsend(this->transmitter_pin_->get_pin());
+  this->ir_send_->begin();
+  
+  // Initialize the IR LG AC controller
+  this->ac_ = new IRLgAc(this->ir_send_);
+  this->ac_->begin();
+  this->ac_->stateReset();
+  this->ac_->setModel(LG_AC_MODEL_LG2);
+  
+  // Setup IR receiver if pin is provided
+  if (this->receiver_pin_ != nullptr) {
+    this->ir_recv_ = new IRrecv(this->receiver_pin_->get_pin());
+    this->ir_recv_->enableIRIn();
+  }
+  
+  // Set initial target temperature to 25°C
+  this->target_temperature = 25;
+  this->mode = climate::CLIMATE_MODE_OFF;
+  this->fan_mode = climate::CLIMATE_FAN_AUTO;
+  this->swing_mode = climate::CLIMATE_SWING_OFF;
 }
+
+void LGClimate::loop() {
+  if (this->ir_recv_ != nullptr && this->ir_recv_->decode(&this->results_)) {
+    this->decode_and_update();
+    this->ir_recv_->resume();
+  }
+}
+
+void LGClimate::control(const climate::ClimateCall &call) {
+  if (call.get_mode().has_value()) {
+    auto mode = *call.get_mode();
+    this->mode = mode;
+    
+    switch (mode) {
+      case climate::CLIMATE_MODE_COOL:
+        this->ac_->setMode(kLgAcCool);
+        break;
+      case climate::CLIMATE_MODE_HEAT:
+        this->ac_->setMode(kLgAcHeat);
+        break;
+      case climate::CLIMATE_MODE_DRY:
+        this->ac_->setMode(kLgAcDry);
+        break;
+      case climate::CLIMATE_MODE_FAN_ONLY:
+        this->ac_->setMode(kLgAcFan);
+        break;
+      case climate::CLIMATE_MODE_AUTO:
+        this->ac_->setMode(kLgAcAuto);
+        break;
+      case climate::CLIMATE_MODE_OFF:
+      default:
+        this->ac_->setPower(false);
+        break;
+    }
+    
+    if (mode != climate::CLIMATE_MODE_OFF) {
+      this->ac_->setPower(true);
+    }
+  }
+  
+  if (call.get_target_temperature().has_value()) {
+    float temp = *call.get_target_temperature();
+    this->target_temperature = temp;
+    // LG AC uses celsius temps, converting float to int
+    this->ac_->setTemp(static_cast<uint8_t>(std::round(temp)));
+  }
+  
+  if (call.get_fan_mode().has_value()) {
+    auto fan_mode = *call.get_fan_mode();
+    this->fan_mode = fan_mode;
+    
+    switch (fan_mode) {
+      case climate::CLIMATE_FAN_LOW:
+        this->ac_->setFan(kLgAcFanLow);
+        break;
+      case climate::CLIMATE_FAN_MEDIUM:
+        this->ac_->setFan(kLgAcFanMed);
+        break;
+      case climate::CLIMATE_FAN_HIGH:
+        this->ac_->setFan(kLgAcFanHigh);
+        break;
+      case climate::CLIMATE_FAN_AUTO:
+      default:
+        this->ac_->setFan(kLgAcFanAuto);
+        break;
+    }
+  }
+  
+  if (call.get_swing_mode().has_value()) {
+    auto swing_mode = *call.get_swing_mode();
+    this->swing_mode = swing_mode;
+    
+    switch (swing_mode) {
+      case climate::CLIMATE_SWING_VERTICAL:
+        this->ac_->setSwingV(true);
+        this->ac_->setSwingH(false);
+        break;
+      case climate::CLIMATE_SWING_HORIZONTAL:
+        this->ac_->setSwingV(false);
+        this->ac_->setSwingH(true);
+        break;
+      case climate::CLIMATE_SWING_BOTH:
+        this->ac_->setSwingV(true);
+        this->ac_->setSwingH(true);
+        break;
+      case climate::CLIMATE_SWING_OFF:
+      default:
+        this->ac_->setSwingV(false);
+        this->ac_->setSwingH(false);
+        break;
+    }
+  }
+  
+  // Send the IR command
+  this->ac_->send();
+  
+  ESP_LOGD(TAG, "LG AC sending command: mode=%d, temp=%.1f, fan=%d", 
+      static_cast<int>(this->mode), this->target_temperature, static_cast<int>(this->fan_mode));
+  
+  this->publish_state();
+}
+
+climate::ClimateTraits LGClimate::traits() {
+  auto traits = climate::ClimateTraits();
+  traits.set_supports_current_temperature(false);
+  traits.set_supports_auto_mode(true);
+  traits.set_supports_cool_mode(true);
+  traits.set_supports_heat_mode(true);
+  traits.set_supports_fan_only_mode(true);
+  traits.set_supports_dry_mode(true);
+  traits.set_supports_fan_mode(true);
+  traits.set_supports_swing_mode(true);
+  
+  traits.set_supports_two_point_target_temperature(false);
+  traits.set_visual_min_temperature(16);
+  traits.set_visual_max_temperature(30);
+  traits.set_visual_temperature_step(1.0f);
+  
+  traits.add_fan_mode(climate::CLIMATE_FAN_AUTO);
+  traits.add_fan_mode(climate::CLIMATE_FAN_LOW);
+  traits.add_fan_mode(climate::CLIMATE_FAN_MEDIUM);
+  traits.add_fan_mode(climate::CLIMATE_FAN_HIGH);
+  
+  traits.add_swing_mode(climate::CLIMATE_SWING_OFF);
+  traits.add_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+  traits.add_swing_mode(climate::CLIMATE_SWING_HORIZONTAL);
+  traits.add_swing_mode(climate::CLIMATE_SWING_BOTH);
+  
+  return traits;
+}
+
+void LGClimate::decode_and_update() {
+  // Check if the decoded result is from an LG AC
+  if (this->results_.decode_type == decode_type_t::LG || 
+      this->results_.decode_type == decode_type_t::LG2) {
+    
+    // Try to decode with the LG AC object
+    if (this->ac_->decode(&this->results_)) {
+      ESP_LOGD(TAG, "Received LG AC command");
+      
+      // Update local state based on received command
+      if (this->ac_->getPower()) {
+        uint8_t lg_mode = this->ac_->getMode();
+        switch (lg_mode) {
+          case kLgAcCool: this->mode = climate::CLIMATE_MODE_COOL; break;
+          case kLgAcHeat: this->mode = climate::CLIMATE_MODE_HEAT; break;
+          case kLgAcDry: this->mode = climate::CLIMATE_MODE_DRY; break;
+          case kLgAcFan: this->mode = climate::CLIMATE_MODE_FAN_ONLY; break;
+          case kLgAcAuto: this->mode = climate::CLIMATE_MODE_AUTO; break;
+          default: this->mode = climate::CLIMATE_MODE_AUTO;
+        }
+      } else {
+        this->mode = climate::CLIMATE_MODE_OFF;
+      }
+      
+      this->target_temperature = this->ac_->getTemp();
+      
+      uint8_t lg_fan = this->ac_->getFan();
+      switch (lg_fan) {
+        case kLgAcFanLow: this->fan_mode = climate::CLIMATE_FAN_LOW; break;
+        case kLgAcFanMed: this->fan_mode = climate::CLIMATE_FAN_MEDIUM; break;
+        case kLgAcFanHigh: this->fan_mode = climate::CLIMATE_FAN_HIGH; break;
+        case kLgAcFanAuto: this->fan_mode = climate::CLIMATE_FAN_AUTO; break;
+        default: this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      }
+      
+      if (this->ac_->getSwingV() && this->ac_->getSwingH()) {
+        this->swing_mode = climate::CLIMATE_SWING_BOTH;
+      } else if (this->ac_->getSwingV()) {
+        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+      } else if (this->ac_->getSwingH()) {
+        this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+      } else {
+        this->swing_mode = climate::CLIMATE_SWING_OFF;
+      }
+      
+      // Update the ESPHome climate state
+      this->publish_state();
+    }
+  }
+}
+
+}  // namespace lg_climate
+}  // namespace esphome

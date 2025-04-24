@@ -1,38 +1,36 @@
 import esphome.codegen as cg
-from esphome.components import ( climate)
 import esphome.config_validation as cv
-from esphome.const import (CONF_ID)
-from esphome import pins
-
-CONF_IR_LED_PIN = "ir_led_pin"
-CONF_IR_RECV_PIN = "ir_recv_pin"
-
-
-AUTO_LOAD = [
-    "climate"
-]
-
-climate_lg2 = cg.esphome_ns.namespace("climate_lg2")
-ClimateLG = climate_lg2.class_("ClimateLG", climate.Climate, cg.Component)
-
-
-CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(ClimateLG),
-        cv.Required(CONF_IR_LED_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_IR_RECV_PIN): pins.gpio_input_pin_schema
-    }
+from esphome.components import climate
+from esphome.const import (
+    CONF_ID,
+    CONF_PIN,
 )
 
+DEPENDENCIES = ["esp8266", "esp32"]
+
+lg_climate_ns = cg.esphome_ns.namespace("lg_climate")
+LGClimate = lg_climate_ns.class_("LGClimate", climate.Climate, cg.Component)
+
+CONF_TRANSMITTER_PIN = "transmitter_pin"
+CONF_RECEIVER_PIN = "receiver_pin"
+
+CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(LGClimate),
+    cv.Required(CONF_TRANSMITTER_PIN): cv.gpio_output_pin_schema,
+    cv.Optional(CONF_RECEIVER_PIN): cv.gpio_input_pin_schema,
+}).extend(cv.COMPONENT_SCHEMA)
+
 async def to_code(config):
-
-    ir_led_pin = await cg.gpio_pin_expression(config[CONF_IR_LED_PIN])
-    ir_recv_pin = await cg.gpio_pin_expression(config[CONF_IR_RECV_PIN])
-
-
-    var = cg.new_Pvariable(config[CONF_ID], ir_led_pin,ir_recv_pin)
+    var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
 
+    transmitter_pin = await cg.gpio_pin_expression(config[CONF_TRANSMITTER_PIN])
+    cg.add(var.set_transmitter_pin(transmitter_pin))
 
+    if CONF_RECEIVER_PIN in config:
+        receiver_pin = await cg.gpio_pin_expression(config[CONF_RECEIVER_PIN])
+        cg.add(var.set_receiver_pin(receiver_pin))
 
+    # Add IRremoteESP8266 library dependency
+    cg.add_library("crankyoldgit/IRremoteESP8266", "2.8.6")
