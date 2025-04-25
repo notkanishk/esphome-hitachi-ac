@@ -38,8 +38,9 @@ namespace esphome
     {
       if (this->ir_recv_ != nullptr && this->ir_recv_->decode(&this->results_))
       {
+        this->ir_recv_->disableIRIn();
         this->decode_and_update();
-        this->ir_recv_->resume();
+        this->ir_recv_->enableIRIn();
       }
     }
 
@@ -50,27 +51,14 @@ namespace esphome
         auto mode = *call.get_mode();
         this->mode = mode;
 
-        switch (mode)
+        if (this->mode == climate::CLIMATE_MODE_OFF)
         {
-        case climate::CLIMATE_MODE_COOL:
-          this->ac_->setMode(kLgAcCool);
-          break;
-        case climate::CLIMATE_MODE_HEAT:
-          this->ac_->setMode(kLgAcHeat);
-          break;
-        case climate::CLIMATE_MODE_DRY:
-          this->ac_->setMode(kLgAcDry);
-          break;
-        case climate::CLIMATE_MODE_FAN_ONLY:
-          this->ac_->setMode(kLgAcFan);
-          break;
-        case climate::CLIMATE_MODE_AUTO:
-          this->ac_->setMode(kLgAcAuto);
-          break;
-        case climate::CLIMATE_MODE_OFF:
-        default:
           this->ac_->setPower(false);
-          break;
+        }
+
+        if (this->mode_ir_int_map.count(this->mode))
+        {
+          this->ac_->setMode(this->mode_ir_int_map[this->mode]);
         }
 
         if (mode != climate::CLIMATE_MODE_OFF)
@@ -91,29 +79,14 @@ namespace esphome
       {
         auto fan_mode = *call.get_fan_mode();
         this->fan_mode = fan_mode;
+        ESP_LOGD(TAG, "Fan Mode: %d\n", this->fan_mode_int_map[this->fan_mode.value()]);
         this->ac_->setFan(this->fan_mode_int_map[this->fan_mode.value()]);
         this->custom_fan_mode.reset();
-        // switch (fan_mode)
-        // {
-        // case climate::CLIMATE_FAN_LOW:
-        //   this->ac_->setFan(kLgAcFanLow);
-        //   break;
-        // case climate::CLIMATE_FAN_MEDIUM:
-        //   this->ac_->setFan(kLgAcFanMedium);
-        //   break;
-        // case climate::CLIMATE_FAN_HIGH:
-        //   this->ac_->setFan(kLgAcFanHigh);
-        //   break;
-        // case climate::CLIMATE_FAN_AUTO:
-        // default:
-        //   this->ac_->setFan(kLgAcFanAuto);
-        //   break;
-        // }
       }
       if (call.get_custom_fan_mode().has_value())
       {
         this->custom_fan_mode = *call.get_custom_fan_mode();
-        this->ac_->setFan(this->custom_fan_mode_int_map[this->custom_fan_mode.value().c_str()]);
+        this->ac_->setFan(this->custom_fanmode_int_map[this->custom_fan_mode.value().c_str()]);
         this->fan_mode.reset();
       }
 
@@ -147,43 +120,39 @@ namespace esphome
     {
       auto traits = climate::ClimateTraits();
       traits.set_supports_current_temperature(false);
-      traits.set_supports_auto_mode(true);
-      traits.set_supports_cool_mode(true);
-      traits.set_supports_heat_mode(true);
-      traits.set_supports_fan_only_mode(true);
-      traits.set_supports_dry_mode(true);
-      // traits.set_supports_fan_mode(true);
-      // traits.set_supports_swing_mode(true);
-
+      traits.set_supported_modes({
+          climate::CLIMATE_MODE_AUTO,
+          climate::CLIMATE_MODE_COOL,
+          climate::CLIMATE_MODE_FAN_ONLY,
+          climate::CLIMATE_MODE_DRY,
+      });
       traits.set_supports_two_point_target_temperature(false);
       traits.set_visual_min_temperature(16);
       traits.set_visual_max_temperature(30);
       traits.set_visual_temperature_step(1.0f);
-
-      traits.set_supported_fan_modes({climate::CLIMATE_FAN_AUTO,
-                                      climate::CLIMATE_FAN_LOW,
-                                      climate::CLIMATE_FAN_MEDIUM,
-                                      climate::CLIMATE_FAN_HIGH,
-                                      climate::CLIMATE_FAN_QUIET,
-                                      climate::CLIMATE_FAN_OFF});
+      traits.set_supported_fan_modes({
+          climate::CLIMATE_FAN_AUTO,
+          climate::CLIMATE_FAN_LOW,
+          climate::CLIMATE_FAN_MEDIUM,
+          climate::CLIMATE_FAN_HIGH,
+          climate::CLIMATE_FAN_QUIET,
+      });
       traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF,
                                         climate::CLIMATE_SWING_VERTICAL});
-
       traits.set_supported_custom_presets({"Power - 100%", "Power - 80%", "Power - 60%", "Power - 40%", "Turbo"});
-
+      traits.set_supported_custom_fan_modes({"Max"});
       return traits;
     }
 
     void LGClimate::decode_and_update()
     {
 
-      
       // Check if the decoded result is from an LG AC
       if (this->results_.decode_type == decode_type_t::LG ||
-        this->results_.decode_type == decode_type_t::LG2)
-        {
-          
-        this->ac_->setRaw(this->results_.value,this->results_.decode_type);
+          this->results_.decode_type == decode_type_t::LG2)
+      {
+
+        this->ac_->setRaw(this->results_.value, this->results_.decode_type);
 
         ESP_LOGD(TAG, "Received LG AC command");
 
@@ -191,25 +160,12 @@ namespace esphome
         if (this->ac_->getPower())
         {
           uint8_t lg_mode = this->ac_->getMode();
-          switch (lg_mode)
+
+          this->mode = climate::CLIMATE_MODE_AUTO;
+
+          if (this->mode_int_ir_map.count(lg_mode))
           {
-          case kLgAcCool:
-            this->mode = climate::CLIMATE_MODE_COOL;
-            break;
-          case kLgAcHeat:
-            this->mode = climate::CLIMATE_MODE_HEAT;
-            break;
-          case kLgAcDry:
-            this->mode = climate::CLIMATE_MODE_DRY;
-            break;
-          case kLgAcFan:
-            this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-            break;
-          case kLgAcAuto:
-            this->mode = climate::CLIMATE_MODE_AUTO;
-            break;
-          default:
-            this->mode = climate::CLIMATE_MODE_AUTO;
+            this->mode = this->mode_int_ir_map[lg_mode];
           }
         }
         else
@@ -220,35 +176,26 @@ namespace esphome
         this->target_temperature = this->ac_->getTemp();
 
         uint8_t lg_fan = this->ac_->getFan();
-        switch (lg_fan)
+
+        if (this->fan_int_mode_map.count(lg_fan))
         {
-        case kLgAcFanLow:
-          this->fan_mode = climate::CLIMATE_FAN_LOW;
-          break;
-        case kLgAcFanMedium:
-          this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-          break;
-        case kLgAcFanHigh:
-          this->fan_mode = climate::CLIMATE_FAN_HIGH;
-          break;
-        case kLgAcFanAuto:
+          this->fan_mode = this->fan_int_mode_map[lg_fan];
+          this->custom_fan_mode.reset();
+        }
+        else if (this->custom_int_fanmode_map.count(lg_fan))
+        {
+          this->custom_fan_mode = esphome::make_optional(this->custom_int_fanmode_map[lg_fan].c_str());
+          this->fan_mode.reset();
+        }
+        else
+        {
           this->fan_mode = climate::CLIMATE_FAN_AUTO;
-          break;
-        default:
-          this->fan_mode = climate::CLIMATE_FAN_AUTO;
+          this->custom_fan_mode.reset();
         }
 
-        if (this->ac_->getSwingV() && this->ac_->getSwingH())
-        {
-          this->swing_mode = climate::CLIMATE_SWING_BOTH;
-        }
-        else if (this->ac_->getSwingV())
+        if (this->ac_->getSwingV())
         {
           this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-        }
-        else if (this->ac_->getSwingH())
-        {
-          this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
         }
         else
         {

@@ -44,8 +44,32 @@ class LGClimate : public climate::Climate, public Component {
     {climate::CLIMATE_FAN_AUTO,5},
   };
 
-  std::map<String,int> custom_fan_mode_int_map = {
+  std::map<int,climate::ClimateFanMode> fan_int_mode_map = {
+    {0,climate::CLIMATE_FAN_QUIET},
+    {9,climate::CLIMATE_FAN_LOW},
+    {2,climate::CLIMATE_FAN_MEDIUM},
+    {10,climate::CLIMATE_FAN_HIGH},
+    {5,climate::CLIMATE_FAN_AUTO},
+  };
+
+  std::map<climate::ClimateMode,int> mode_ir_int_map = {
+    {climate::CLIMATE_MODE_COOL,0},
+    {climate::CLIMATE_MODE_DRY,1},
+    {climate::CLIMATE_MODE_FAN_ONLY,2},
+    {climate::CLIMATE_MODE_AUTO,3},
+  };
+  std::map<int,climate::ClimateMode> mode_int_ir_map = {
+    {0,climate::CLIMATE_MODE_COOL},
+    {1,climate::CLIMATE_MODE_DRY},
+    {2,climate::CLIMATE_MODE_FAN_ONLY},
+    {3,climate::CLIMATE_MODE_AUTO}
+  };
+
+  std::map<String,int> custom_fanmode_int_map = {
     {"Max",4}
+  };
+  std::map<int,String> custom_int_fanmode_map = {
+    {4,"Max"}
   };
 
   
