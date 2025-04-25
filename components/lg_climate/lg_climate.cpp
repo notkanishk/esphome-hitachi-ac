@@ -91,23 +91,30 @@ namespace esphome
       {
         auto fan_mode = *call.get_fan_mode();
         this->fan_mode = fan_mode;
-
-        switch (fan_mode)
-        {
-        case climate::CLIMATE_FAN_LOW:
-          this->ac_->setFan(kLgAcFanLow);
-          break;
-        case climate::CLIMATE_FAN_MEDIUM:
-          this->ac_->setFan(kLgAcFanMedium);
-          break;
-        case climate::CLIMATE_FAN_HIGH:
-          this->ac_->setFan(kLgAcFanHigh);
-          break;
-        case climate::CLIMATE_FAN_AUTO:
-        default:
-          this->ac_->setFan(kLgAcFanAuto);
-          break;
-        }
+        this->ac_->setFan(this->fan_mode_int_map[this->fan_mode.value()]);
+        this->custom_fan_mode.reset();
+        // switch (fan_mode)
+        // {
+        // case climate::CLIMATE_FAN_LOW:
+        //   this->ac_->setFan(kLgAcFanLow);
+        //   break;
+        // case climate::CLIMATE_FAN_MEDIUM:
+        //   this->ac_->setFan(kLgAcFanMedium);
+        //   break;
+        // case climate::CLIMATE_FAN_HIGH:
+        //   this->ac_->setFan(kLgAcFanHigh);
+        //   break;
+        // case climate::CLIMATE_FAN_AUTO:
+        // default:
+        //   this->ac_->setFan(kLgAcFanAuto);
+        //   break;
+        // }
+      }
+      if (call.get_custom_fan_mode().has_value())
+      {
+        this->custom_fan_mode = *call.get_custom_fan_mode();
+        this->ac_->setFan(this->custom_fan_mode_int_map[this->custom_fan_mode.value().c_str()]);
+        this->fan_mode.reset();
       }
 
       if (call.get_swing_mode().has_value())
