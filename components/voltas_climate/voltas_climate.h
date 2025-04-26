@@ -10,6 +10,7 @@
 #include <IRrecv.h>
 #include <IRutils.h>
 #include <ir_Voltas.h>
+#include <IRac.h>
 
 #include <map>
 
@@ -35,46 +36,45 @@ class VoltasClimate : public climate::Climate, public Component {
   InternalGPIOPin *receiver_pin_{nullptr};
 
   std::map<climate::ClimateFanMode, uint8_t> fan_mode_int_map = {
-    {climate::CLIMATE_FAN_LOW, kVoltasFanLow},
-    {climate::CLIMATE_FAN_MEDIUM, kVoltasFanMedium},
-    {climate::CLIMATE_FAN_HIGH, kVoltasFanHigh},
-    {climate::CLIMATE_FAN_AUTO, kVoltasFanAuto},
+    {climate::CLIMATE_FAN_LOW, 4},
+    {climate::CLIMATE_FAN_MEDIUM, 2},
+    {climate::CLIMATE_FAN_HIGH, 1},
+    {climate::CLIMATE_FAN_AUTO, 7},
   };
 
   std::map<uint8_t, climate::ClimateFanMode> fan_int_mode_map = {
-    {kVoltasFanLow, climate::CLIMATE_FAN_LOW},
-    {kVoltasFanMedium, climate::CLIMATE_FAN_MEDIUM},
-    {kVoltasFanHigh, climate::CLIMATE_FAN_HIGH},
-    {kVoltasFanAuto, climate::CLIMATE_FAN_AUTO},
+    {4, climate::CLIMATE_FAN_LOW},
+    {2, climate::CLIMATE_FAN_MEDIUM},
+    {1, climate::CLIMATE_FAN_HIGH},
+    {7, climate::CLIMATE_FAN_AUTO},
   };
 
   std::map<climate::ClimateMode, uint8_t> mode_ir_int_map = {
-    {climate::CLIMATE_MODE_COOL, kVoltasCool},
-    {climate::CLIMATE_MODE_DRY, kVoltasDry},
-    {climate::CLIMATE_MODE_FAN_ONLY, kVoltasFan},
-    {climate::CLIMATE_MODE_AUTO, kVoltasAuto},
-    {climate::CLIMATE_MODE_HEAT, kVoltasHeat},
+    {climate::CLIMATE_MODE_COOL, 8},
+    {climate::CLIMATE_MODE_DRY, 4},
+    {climate::CLIMATE_MODE_FAN_ONLY, 1},
+    {climate::CLIMATE_MODE_HEAT,2}
   };
   
   std::map<uint8_t, climate::ClimateMode> mode_int_ir_map = {
-    {kVoltasCool, climate::CLIMATE_MODE_COOL},
-    {kVoltasDry, climate::CLIMATE_MODE_DRY},
-    {kVoltasFan, climate::CLIMATE_MODE_FAN_ONLY},
-    {kVoltasAuto, climate::CLIMATE_MODE_AUTO},
-    {kVoltasHeat, climate::CLIMATE_MODE_HEAT},
+    {8, climate::CLIMATE_MODE_COOL},
+    {4, climate::CLIMATE_MODE_DRY},
+    {1, climate::CLIMATE_MODE_FAN_ONLY},
+    {2,climate::CLIMATE_MODE_HEAT}
   };
 
   std::map<climate::ClimateSwingMode, uint8_t> swing_mode_int_map = {
-    {climate::CLIMATE_SWING_OFF, kVoltasSwingOff},
-    {climate::CLIMATE_SWING_VERTICAL, kVoltasSwingOn},
+    {climate::CLIMATE_SWING_OFF, 0},
+    {climate::CLIMATE_SWING_VERTICAL, 1},
   };
 
   std::map<uint8_t, climate::ClimateSwingMode> swing_int_mode_map = {
-    {kVoltasSwingOff, climate::CLIMATE_SWING_OFF},
-    {kVoltasSwingOn, climate::CLIMATE_SWING_VERTICAL},
+    {0, climate::CLIMATE_SWING_OFF},
+    {1, climate::CLIMATE_SWING_VERTICAL},
   };
 
   // Handle decoded IR signals
+  void dump_readable_ir_recv();
   void decode_and_update();
 };
 
