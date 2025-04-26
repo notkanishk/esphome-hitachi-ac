@@ -23,7 +23,8 @@ namespace esphome
       // Setup IR receiver if pin is provided
       if (this->receiver_pin_ != nullptr)
       {
-        this->ir_recv_ = new IRrecv(this->receiver_pin_->get_pin());
+        this->ir_recv_ = new IRrecv(this->receiver_pin_->get_pin(),1024,50);
+        this->ir_recv_->setTolerance(kTolerance);
         this->ir_recv_->enableIRIn();
       }
 
