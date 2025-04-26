@@ -23,7 +23,7 @@ namespace esphome
       // Setup IR receiver if pin is provided
       if (this->receiver_pin_ != nullptr)
       {
-        this->ir_recv_ = new IRrecv(this->receiver_pin_->get_pin(),1024,50);
+        this->ir_recv_ = new IRrecv(this->receiver_pin_->get_pin(), 1024, 50);
         this->ir_recv_->setTolerance(kTolerance);
         this->ir_recv_->enableIRIn();
       }
@@ -108,8 +108,17 @@ namespace esphome
         }
       }
 
+      if (call.get_preset().has_value())
+      {
+        this->custom_preset.reset();
+        this->preset = *call.get_preset();
+      }
+
+
       // Send the IR command
+      this->ir_recv_->disableIRIn();
       this->ac_->send();
+      this->ir_recv_->enableIRIn();
 
       ESP_LOGD(TAG, "LG AC sending command: mode=%d, temp=%.1f, fan=%d",
                static_cast<int>(this->mode), this->target_temperature, static_cast<int>(this->fan_mode.value()));
@@ -139,9 +148,10 @@ namespace esphome
           climate::CLIMATE_FAN_HIGH,
           climate::CLIMATE_FAN_QUIET,
       });
+      traits.set_supported_presets({climate::CLIMATE_PRESET_BOOST});
       traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF,
                                         climate::CLIMATE_SWING_VERTICAL});
-      traits.set_supported_custom_presets({"Power - 100%", "Power - 80%", "Power - 60%", "Power - 40%", "Turbo"});
+      traits.set_supported_custom_presets({"Power - 100%", "Power - 80%", "Power - 60%", "Power - 40%"});
       traits.set_supported_custom_fan_modes({"Max"});
       return traits;
     }
@@ -154,9 +164,30 @@ namespace esphome
           this->results_.decode_type == decode_type_t::LG2)
       {
 
+        uint32_t backup_hex = this->ac_->getRaw();
         this->ac_->setRaw(this->results_.value, this->results_.decode_type);
 
-        ESP_LOGD(TAG, "Received LG AC command");
+        String hex = resultToHexidecimal(&this->results_);
+        ESP_LOGD(TAG, "Received LG AC command \t Hex: %s", hex.c_str());
+
+        // check for presets
+        if (this->hex_preset_map.count(hex))
+        {
+          if (this->hex_preset_map[hex] == climate::CLIMATE_PRESET_BOOST)
+            this->custom_preset.reset();
+          this->preset = this->hex_preset_map[hex];
+          this->target_temperature = 15;
+          this->fan_mode = climate::CLIMATE_FAN_AUTO;
+          this->mode = climate::CLIMATE_MODE_COOL;
+          // Restore the backed up hex in the internal ac state;
+          this->ac_->setRaw(backup_hex);
+          this->publish_state();
+          return;
+        }
+
+        this->preset.reset();
+        this->custom_preset.reset();
+
 
         // Update local state based on received command
         if (this->ac_->getPower())

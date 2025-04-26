@@ -72,8 +72,27 @@ class LGClimate : public climate::Climate, public Component {
     {4,"Max"}
   };
 
-  
-  
+  std::map<climate::ClimatePreset,String> preset_hex_map = {
+    {climate::CLIMATE_PRESET_BOOST,"0x88100DE"}
+  };
+
+  std::map<String,climate::ClimatePreset> hex_preset_map = {
+    {"0x88100DE",climate::CLIMATE_PRESET_BOOST}
+  };
+
+  std::map<String,String> power_mode_hex_str_map = {
+    {"0x88C07D0","Power - 80%"},
+    {"0x88C07E1","Power - 60%"},
+    {"0x88C0804","Power - 40%"},
+    {"0x88C07F2","Power - 100%"}
+  };
+  std::map<String,String> power_mode_str_hex_map = {
+    {"Power - 80%","0x88C07D0"},
+    {"Power - 60%","0x88C07E1"},
+    {"Power - 40%","0x88C0804"},        
+    {"Power - 100%","0x88C07F2"}
+  };
+
 
   // Handle decoded IR signals
   void decode_and_update();
