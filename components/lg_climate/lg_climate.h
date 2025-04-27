@@ -31,6 +31,7 @@ class LGClimate : public climate::Climate, public Component {
  protected:
   IRLgAc *ac_{nullptr};
   IRsend *ir_send_{nullptr};
+  
   IRrecv *ir_recv_{nullptr};
   decode_results results_{};
   InternalGPIOPin *transmitter_pin_{nullptr};
@@ -93,6 +94,8 @@ class LGClimate : public climate::Climate, public Component {
     {"Power - 100%","0x88C07F2"}
   };
 
+  String prev_custom_preset_;
+  climate::ClimatePreset prev_preset_;
 
   // Handle decoded IR signals
   void decode_and_update();

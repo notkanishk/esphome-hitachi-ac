@@ -28,20 +28,23 @@ namespace esphome
         this->ir_recv_->enableIRIn();
       }
 
-
       // TODO: Restore config from flash
 
       auto restore = this->restore_state_();
-      if (restore.has_value())  {
+      if (restore.has_value())
+      {
         restore->apply(this);
-      } else {
+      }
+      else
+      {
         this->target_temperature = 25;
         this->mode = climate::CLIMATE_MODE_OFF;
         this->fan_mode = climate::CLIMATE_FAN_AUTO;
-        this->swing_mode = climate::CLIMATE_SWING_OFF;        
+        this->swing_mode = climate::CLIMATE_SWING_OFF;
       }
 
-      if (std::isnan(this->target_temperature)) {
+      if (std::isnan(this->target_temperature))
+      {
         this->target_temperature = 25;
       }
     }
@@ -58,6 +61,43 @@ namespace esphome
 
     void LGClimate::control(const climate::ClimateCall &call)
     {
+      if (this->preset.has_value())
+      {
+        this->prev_preset_ = this->preset.value();
+      }
+      if (this->custom_preset.has_value())
+      {
+        this->prev_custom_preset_ = this->custom_preset.value().c_str();
+      }
+
+      // // Handle Preset Change
+      // auto incomming_preset = call.get_preset().value();
+      // ESP_LOGI(TAG, "Fake Error");
+      // if (call.get_preset().has_value())
+      // {
+      //   ESP_LOGI(TAG + 'IR_RECV', "call.get_preset().value() == this->preset.value() : %s", TRUEFALSE(call.get_preset().value() != this->preset.value()));
+      //   if (call.get_preset().value() != this->preset.value())
+      //   {
+      //     if (incomming_preset == climate::CLIMATE_PRESET_BOOST)
+      //     {
+      //       String hex = this->preset_hex_map[incomming_preset].substring(2);
+      //       ESP_LOGI(TAG, "Settings Mode: Turbo \t Hex: %s", hex.c_str());
+      //       uint64_t ir_code = strtoull(hex.c_str(), NULL, 16);
+      //       this->ir_send_->sendLG2(ir_code);
+      //       this->target_temperature = 15;
+      //       this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      //       this->custom_fan_mode.reset();
+      //       this->publish_state();
+      //     }
+      //     else
+      //     {
+      //       ESP_LOGI(TAG, "Unknown State");
+      //     }
+      //   }
+
+      //   return;
+      // }
+
       if (call.get_mode().has_value())
       {
         auto mode = *call.get_mode();
@@ -125,6 +165,11 @@ namespace esphome
         this->preset = *call.get_preset();
       }
 
+      if (call.get_custom_preset().has_value())
+      {
+        this->preset.reset();
+        this->custom_preset = *call.get_custom_preset();
+      }
 
       // Send the IR command
       this->ir_recv_->disableIRIn();
@@ -198,7 +243,6 @@ namespace esphome
 
         this->preset.reset();
         this->custom_preset.reset();
-
 
         // Update local state based on received command
         if (this->ac_->getPower())
