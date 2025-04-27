@@ -28,11 +28,22 @@ namespace esphome
         this->ir_recv_->enableIRIn();
       }
 
-      // Set initial target temperature to 25°C
-      this->target_temperature = 25;
-      this->mode = climate::CLIMATE_MODE_OFF;
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      this->swing_mode = climate::CLIMATE_SWING_OFF;
+
+      // TODO: Restore config from flash
+
+      auto restore = this->restore_state_();
+      if (restore.has_value())  {
+        restore->apply(this);
+      } else {
+        this->target_temperature = 25;
+        this->mode = climate::CLIMATE_MODE_OFF;
+        this->fan_mode = climate::CLIMATE_FAN_AUTO;
+        this->swing_mode = climate::CLIMATE_SWING_OFF;        
+      }
+
+      if (std::isnan(this->target_temperature)) {
+        this->target_temperature = 25;
+      }
     }
 
     void LGClimate::loop()
