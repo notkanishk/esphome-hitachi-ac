@@ -11,13 +11,25 @@ void HitachiACClimate::setup() {
   // Initialize the IR transmitter.
   ac.begin();
   // Set a default state: power on, cooling mode, default temperature.
-  ac.setPower(true);
-  ac.setMode(kHitachiAcCool);
+  ac.setPower(false);
+  this->mode = climate::CLIMATE_MODE_OFF;
+  ac.setMode(kHitachiAc1Cool);
   ac.setTemp(24);
   ac.send();
 
+
   // Start the IR receiver.
   irrecv.enableIRIn();
+
+    // restore set points
+  auto restore = this->restore_state_();
+  if (restore.has_value()) {
+    restore->apply(this);
+  } else {
+    // restore from defaults
+    this->mode = climate::CLIMATE_MODE_OFF;
+    this->target_temperature = 24;
+  }
 }
 
 void HitachiACClimate::loop() {
