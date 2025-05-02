@@ -17,3 +17,6 @@ wheels/
 
 # VS Code
 .vscode/
+
+# local config
+deploy.yaml
